@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2-Phase Commit Demo - E-commerce System</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .main-content {
+            padding: 30px;
+        }
+
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border-radius: 10px;
+            border-left: 5px solid #667eea;
+            background: #f8f9ff;
+        }
+
+        .section h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            border: 1px solid #e0e0e0;
+        }
+
+        .card h4 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.2em;
+        }
+
+        .user-item, .product-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            margin: 5px 0;
+            background: #f5f5f5;
+            border-radius: 5px;
+        }
+
+        .order-form {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            padding: 25px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        .form-group select, .form-group input {
+            width: 100%;
+            padding: 10px;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-reset {
+            background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+            color: #333;
+            margin-left: 10px;
+        }
+
+        .result-container {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .phase-section {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 8px;
+        }
+
+        .phase-1 {
+            background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+        }
+
+        .phase-2 {
+            background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+        }
+
+        .step {
+            display: flex;
+            align-items: center;
+            margin: 10px 0;
+            padding: 10px;
+            background: rgba(255,255,255,0.7);
+            border-radius: 5px;
+        }
+
+        .step-icon {
+            margin-right: 10px;
+            font-size: 1.2em;
+        }
+
+        .success {
+            color: #28a745;
+        }
+
+        .error {
+            color: #dc3545;
+        }
+
+        .order-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            margin: 10px 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 8px;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 2s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .transaction-item {
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 0.9em;
+        }
+
+        .status-prepared { background: #fff3cd; color: #856404; }
+        .status-committed { background: #d4edda; color: #155724; }
+        .status-aborted { background: #f8d7da; color: #721c24; }
+
+        @media (max-width: 768px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏪 2-Phase Commit Demo</h1>
+            <p>Learn Distributed Transactions with a Simple E-commerce System</p>
+        </div>
+
+        <div class="main-content">
+            <!-- Order Form -->
+            <div class="order-form">
+                <h3>📝 Place an Order</h3>
+                <p style="margin-bottom: 20px; opacity: 0.9;">
+                    Select a user, product, and quantity to see 2-Phase Commit in action!
+                </p>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr auto; gap: 15px; align-items: end;">
+                    <div class="form-group">
+                        <label for="userId">👤 Customer:</label>
+                        <select id="userId">
+                            <option value="">Select Customer</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="productId">📦 Product:</label>
+                        <select id="productId">
+                            <option value="">Select Product</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="quantity">🔢 Quantity:</label>
+                        <input type="number" id="quantity" min="1" value="1">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>&nbsp;</label>
+                        <button class="btn" onclick="processOrder()" id="orderBtn">
+                            🚀 Process Order
+                        </button>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>&nbsp;</label>
+                        <button class="btn btn-reset" onclick="resetDatabase()">
+                            🔄 Reset Data
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Loading indicator -->
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p>Processing 2-Phase Commit Transaction...</p>
+            </div>
+
+            <!-- Results -->
+            <div class="result-container" id="results" style="display: none;">
+                <h3>📊 Transaction Results</h3>
+                <div id="resultContent"></div>
+            </div>
+
+            <!-- Current State -->
+            <div class="grid">
+                <div class="card">
+                    <h4>👥 Customers</h4>
+                    <div id="usersList"></div>
+                </div>
+                
+                <div class="card">
+                    <h4>📦 Products</h4>
+                    <div id="productsList"></div>
+                </div>
+            </div>
+
+            <div class="grid">
+                <div class="card">
+                    <h4>📋 Recent Orders</h4>
+                    <div id="ordersList"></div>
+                </div>
+                
+                <div class="card">
+                    <h4>🔄 Transaction Log</h4>
+                    <div id="transactionsList"></div>
+                </div>
+            </div>
+
+            <!-- Explanation -->
+            <div class="section">
+                <h3>🎓 How 2-Phase Commit Works</h3>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                    <div>
+                        <h4 style="color: #f093fb;">📝 Phase 1: PREPARE</h4>
+                        <ul style="margin-left: 20px; line-height: 1.6;">
+                            <li><strong>Coordinator asks all participants:</strong> "Can you do your part?"</li>
+                            <li><strong>User Service:</strong> "Can deduct money from balance?"</li>
+                            <li><strong>Inventory Service:</strong> "Can reduce stock?"</li>
+                            <li><strong>Order Service:</strong> "Can create order record?"</li>
+                            <li><strong>All must vote YES</strong> to proceed to Phase 2</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h4 style="color: #667eea;">✅ Phase 2: COMMIT</h4>
+                        <ul style="margin-left: 20px; line-height: 1.6;">
+                            <li><strong>If Phase 1 succeeded:</strong> Coordinator says "COMMIT!"</li>
+                            <li><strong>User Service:</strong> Actually deducts the money</li>
+                            <li><strong>Inventory Service:</strong> Actually reduces stock</li>
+                            <li><strong>Order Service:</strong> Actually creates order</li>
+                            <li><strong>All operations complete</strong> or all rollback</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentState = {};
+
+        // Load initial data when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            loadCurrentState();
+        });
+
+        // Load current system state
+        async function loadCurrentState() {
+            try {
+                const response = await fetch('/api/state');
+                currentState = await response.json();
+                updateUI();
+            } catch (error) {
+                console.error('Error loading state:', error);
+            }
+        }
+
+        // Update UI with current state
+        function updateUI() {
+            // Update user dropdown and display
+            const userSelect = document.getElementById('userId');
+            const usersList = document.getElementById('usersList');
+            
+            userSelect.innerHTML = '<option value="">Select Customer</option>';
+            usersList.innerHTML = '';
+            
+            currentState.users.forEach(user => {
+                // Add to dropdown
+                const option = document.createElement('option');
+                option.value = user._id;
+                option.textContent = `${user.name} ($${user.balance})`;
+                userSelect.appendChild(option);
+                
+                // Add to display
+                const userDiv = document.createElement('div');
+                userDiv.className = 'user-item';
+                userDiv.innerHTML = `
+                    <span><strong>${user.name}</strong> (${user._id})</span>
+                    <span class="success">$${user.balance}</span>
+                `;
+                usersList.appendChild(userDiv);
+            });
+
+            // Update product dropdown and display
+            const productSelect = document.getElementById('productId');
+            const productsList = document.getElementById('productsList');
+            
+            productSelect.innerHTML = '<option value="">Select Product</option>';
+            productsList.innerHTML = '';
+            
+            currentState.products.forEach(product => {
+                // Add to dropdown
+                const option = document.createElement('option');
+                option.value = product._id;
+                option.textContent = `${product.name} ($${product.price}) - Stock: ${product.stock}`;
+                productSelect.appendChild(option);
+                
+                // Add to display
+                const productDiv = document.createElement('div');
+                productDiv.className = 'product-item';
+                productDiv.innerHTML = `
+                    <span><strong>${product.name}</strong> - $${product.price}</span>
+                    <span class="success">Stock: ${product.stock}</span>
+                `;
+                productsList.appendChild(productDiv);
+            });
+
+            // Update orders display
+            const ordersList = document.getElementById('ordersList');
+            ordersList.innerHTML = '';
+            
+            if (currentState.orders.length === 0) {
+                ordersList.innerHTML = '<p style="color: #666; font-style: italic;">No orders yet</p>';
+            } else {
+                currentState.orders.forEach(order => {
+                    const user = currentState.users.find(u => u._id === order.userId);
+                    const product = currentState.products.find(p => p._id === order.productId);
+                    
+                    const orderDiv = document.createElement('div');
+                    orderDiv.className = 'order-item';
+                    orderDiv.innerHTML = `
+                        <div>
+                            <strong>${user?.name || order.userId}</strong> bought 
+                            <strong>${order.quantity}x ${product?.name || order.productId}</strong>
+                        </div>
+                        <div>$${order.totalCost}</div>
+                    `;
+                    ordersList.appendChild(orderDiv);
+                });
+            }
+
+            // Update transactions display
+            const transactionsList = document.getElementById('transactionsList');
+            transactionsList.innerHTML = '';
+            
+            if (currentState.transactions.length === 0) {
+                transactionsList.innerHTML = '<p style="color: #666; font-style: italic;">No transactions yet</p>';
+            } else {
+                currentState.transactions.forEach(txn => {
+                    const txnDiv = document.createElement('div');
+                    txnDiv.className = `transaction-item status-${txn.status.toLowerCase()}`;
+                    txnDiv.innerHTML = `
+                        <div><strong>${txn._id}</strong></div>
+                        <div>Status: <strong>${txn.status}</strong></div>
+                        <div>User: ${txn.userId}, Product: ${txn.productId}</div>
+                    `;
+                    transactionsList.appendChild(txnDiv);
+                });
+            }
+        }
+
+        // Process order using 2PC
+        async function processOrder() {
+            const userId = document.getElementById('userId').value;
+            const productId = document.getElementById('productId').value;
+            const quantity = parseInt(document.getElementById('quantity').value);
+
+            // Validation
+            if (!userId || !productId || !quantity) {
+                alert('❌ Please select customer, product, and quantity');
+                return;
+            }
+
+            if (quantity <= 0) {
+                alert('❌ Quantity must be greater than 0');
+                return;
+            }
+
+            // Show loading
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('results').style.display = 'none';
+            document.getElementById('orderBtn').disabled = true;
+
+            try {
+                const response = await fetch('/api/process-order', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId, productId, quantity })
+                });
+
+                const result = await response.json();
+
+                // Display results
+                displayResults(result);
+
+                // Reload current state to show updates
+                await loadCurrentState();
+
+            } catch (error) {
+                console.error('Error processing order:', error);
+                alert('❌ Error processing order: ' + error.message);
+            } finally {
+                // Hide loading
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('orderBtn').disabled = false;
+            }
+        }
+
+        // Display transaction results with beautiful formatting
+        function displayResults(result) {
+            const resultsDiv = document.getElementById('results');
+            const contentDiv = document.getElementById('resultContent');
+            
+            let html = `
+                <div style="text-align: center; margin-bottom: 25px; padding: 20px; border-radius: 10px; background: ${result.success ? 'linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%)' : 'linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%)'};">
+                    <h4 style="color: ${result.success ? '#155724' : '#721c24'}; font-size: 1.8em; margin-bottom: 10px;">
+                        ${result.success ? '🎉 TRANSACTION SUCCESSFUL!' : '❌ TRANSACTION FAILED!'}
+                    </h4>
+                    <p style="font-size: 1.2em; color: ${result.success ? '#155724' : '#721c24'}; font-weight: 500;">
+                        ${result.message}
+                    </p>
+                </div>
+            `;
+
+            // Phase 1 Results
+            if (result.phase1) {
+                const phase1Success = result.phase1.success;
+                html += `
+                    <div class="phase-section" style="background: ${phase1Success ? 'linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%)' : 'linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%)'}; border-left: 5px solid ${phase1Success ? '#ffc107' : '#dc3545'};">
+                        <h4 style="color: ${phase1Success ? '#856404' : '#721c24'}; margin-bottom: 10px;">
+                            📝 PHASE 1: PREPARE ${phase1Success ? '✅' : '❌'}
+                        </h4>
+                        <p style="margin-bottom: 15px; color: #666; font-style: italic;">
+                            Coordinator asks all participants: "Can you do your part?"
+                        </p>
+                `;
+                
+                result.phase1.steps.forEach((step, index) => {
+                    html += `
+                        <div class="step" style="animation: slideIn 0.5s ease ${index * 0.1}s both;">
+                            <span class="step-icon ${step.success ? 'success' : 'error'}" style="font-size: 1.3em;">
+                                ${step.success ? '✅' : '❌'}
+                            </span>
+                            <span style="font-size: 1.05em;">${step.message}</span>
+                        </div>
+                    `;
+                });
+                
+                html += '</div>';
+            }
+
+            // Phase 2 Results (only if Phase 1 succeeded)
+            if (result.phase2) {
+                const phase2Success = result.phase2.success;
+                html += `
+                    <div class="phase-section" style="background: ${phase2Success ? 'linear-gradient(135deg, #d1ecf1 0%, #bee5eb 100%)' : 'linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%)'}; border-left: 5px solid ${phase2Success ? '#17a2b8' : '#dc3545'};">
+                        <h4 style="color: ${phase2Success ? '#0c5460' : '#721c24'}; margin-bottom: 10px;">
+                            ✅ PHASE 2: COMMIT ${phase2Success ? '✅' : '❌'}
+                        </h4>
+                        <p style="margin-bottom: 15px; color: #666; font-style: italic;">
+                            All participants execute their operations atomically:
+                        </p>
+                `;
+                
+                result.phase2.steps.forEach((step, index) => {
+                    html += `
+                        <div class="step" style="animation: slideIn 0.5s ease ${(index + 3) * 0.1}s both;">
+                            <span class="step-icon ${step.success ? 'success' : 'error'}" style="font-size: 1.3em;">
+                                ${step.success ? '✅' : '❌'}
+                            </span>
+                            <span style="font-size: 1.05em;">${step.message}</span>
+                        </div>
+                    `;
+                });
+                
+                html += '</div>';
+            }
+
+            // Add summary box
+            if (result.success) {
+                html += `
+                    <div style="margin-top: 20px; padding: 15px; background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%); border-radius: 8px; text-align: center;">
+                        <h5 style="color: #155724; margin-bottom: 10px;">🎯 2-Phase Commit Completed Successfully!</h5>
+                        <p style="color: #155724; margin: 0;">
+                            All participants voted YES in Phase 1, then successfully executed their operations in Phase 2.
+                            <br><strong>Atomicity guaranteed:</strong> All operations completed or none would have.
+                        </p>
+                    </div>
+                `;
+            } else {
+                html += `
+                    <div style="margin-top: 20px; padding: 15px; background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%); border-radius: 8px; text-align: center;">
+                        <h5 style="color: #721c24; margin-bottom: 10px;">🛡️ 2-Phase Commit Protection Activated!</h5>
+                        <p style="color: #721c24; margin: 0;">
+                            At least one participant voted NO in Phase 1, so the transaction was safely aborted.
+                            <br><strong>No partial updates:</strong> Database remains in consistent state.
+                        </p>
+                    </div>
+                `;
+            }
+
+            contentDiv.innerHTML = html;
+            resultsDiv.style.display = 'block';
+            
+            // Smooth scroll to results
+            setTimeout(() => {
+                resultsDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 100);
+        }
+
+        // Reset database to initial state
+        async function resetDatabase() {
+            if (!confirm('🔄 Are you sure you want to reset the database to initial state?\n\nThis will:\n• Restore all user balances\n• Reset all product stock\n• Clear all orders\n• Clear transaction history')) {
+                return;
+            }
+
+            // Show loading state for reset button
+            const resetBtn = event.target;
+            const originalText = resetBtn.innerHTML;
+            resetBtn.innerHTML = '🔄 Resetting...';
+            resetBtn.disabled = true;
+
+            try {
+                const response = await fetch('/api/reset', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                if (response.ok) {
+                    // Success notification
+                    const notification = document.createElement('div');
+                    notification.style.cssText = `
+                        position: fixed; top: 20px; right: 20px; z-index: 1000;
+                        background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+                        color: white; padding: 15px 25px; border-radius: 8px;
+                        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+                        font-weight: 500; animation: slideInRight 0.5s ease;
+                    `;
+                    notification.innerHTML = '✅ Database reset successfully!';
+                    document.body.appendChild(notification);
+
+                    // Remove notification after 3 seconds
+                    setTimeout(() => {
+                        notification.style.animation = 'slideOutRight 0.5s ease';
+                        setTimeout(() => document.body.removeChild(notification), 500);
+                    }, 3000);
+
+                    // Reload current state
+                    await loadCurrentState();
+                    
+                    // Hide results
+                    document.getElementById('results').style.display = 'none';
+                    
+                    // Reset form
+                    document.getElementById('userId').value = '';
+                    document.getElementById('productId').value = '';
+                    document.getElementById('quantity').value = '1';
+
+                } else {
+                    alert('❌ Failed to reset database');
+                }
+            } catch (error) {
+                console.error('Error resetting database:', error);
+                alert('❌ Error resetting database: ' + error.message);
+            } finally {
+                // Restore button
+                resetBtn.innerHTML = originalText;
+                resetBtn.disabled = false;
+            }
+        }
+
+        // Add CSS animations
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes slideIn {
+                from {
+                    opacity: 0;
+                    transform: translateX(-20px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateX(0);
+                }
+            }
+
+            @keyframes slideInRight {
+                from {
+                    opacity: 0;
+                    transform: translateX(100px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateX(0);
+                }
+            }
+
+            @keyframes slideOutRight {
+                from {
+                    opacity: 1;
+                    transform: translateX(0);
+                }
+                to {
+                    opacity: 0;
+                    transform: translateX(100px);
+                }
+            }
+
+            .step {
+                transition: all 0.3s ease;
+            }
+
+            .step:hover {
+                transform: translateX(5px);
+                background: rgba(255,255,255,0.9) !important;
+            }
+        `;
+        document.head.appendChild(style);
+    </script>
+</body>
+</html>
+
