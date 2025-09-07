@@ -42,7 +42,7 @@ It uses MongoDB to store users, products, orders, and transaction logs, and Expr
 
 ```bash
 # Clone the repository
-git clone <repo-url>
+git clone https://github.com/MilsPatel/TwoPhaseCommunication.git
 cd ecommerce-2pc
 
 # Install dependencies
